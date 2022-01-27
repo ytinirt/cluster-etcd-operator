@@ -54,6 +54,8 @@ spec:
           name: etcd-service-ca
         - mountPath: /var/run/secrets/etcd-client
           name: etcd-client
+        - mountPath: /usr/bin/cluster-etcd-operator
+          name: operator-bin
         env:
         - name: IMAGE
           value: quay.io/openshift/origin-etcd
@@ -77,6 +79,9 @@ spec:
         secret:
           secretName: etcd-operator-serving-cert
           optional: true
+      - name: operator-bin
+        hostPath:
+          path: /root/cluster-etcd-operator/cluster-etcd-operator
       - name: config
         configMap:
           name: etcd-operator-config
