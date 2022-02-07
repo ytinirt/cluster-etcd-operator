@@ -2,6 +2,8 @@ package operator
 
 import (
 	"context"
+	"github.com/openshift/cluster-etcd-operator/pkg/ccos"
+	"github.com/openshift/library-go/pkg/controller/manager"
 	"os"
 	"regexp"
 	"time"
@@ -149,14 +151,26 @@ func RunOperator(ctx context.Context, controllerContext *controllercmd.Controlle
 	// Don't set operator version. library-go will take care of it after setting operands.
 	versionRecorder.SetVersion("raw-internal", status.VersionForOperatorFromEnv())
 
-	staticPodControllers, err := staticpod.NewBuilder(operatorClient, kubeClient, kubeInformersForNamespaces).
-		WithEvents(controllerContext.EventRecorder).
-		WithInstaller([]string{"cluster-etcd-operator", "installer"}).
-		WithPruning([]string{"cluster-etcd-operator", "prune"}, "etcd-pod").
-		WithRevisionedResources("openshift-etcd", "etcd", RevisionConfigMaps, RevisionSecrets).
-		WithUnrevisionedCerts("etcd-certs", CertConfigMaps, CertSecrets).
-		WithVersioning("etcd", versionRecorder).
-		ToControllers()
+	var staticPodControllers manager.ControllerManager
+	if ccos.IsAdoptMode(ctx, kubeClient) {
+		staticPodControllers, err = staticpod.NewBuilder(operatorClient, kubeClient, kubeInformersForNamespaces).
+			WithEvents(controllerContext.EventRecorder).
+			WithCustomInstaller([]string{"cluster-etcd-operator", "installer"}, ccos.InstallerPodMutationFunc).
+			WithPruning([]string{"cluster-etcd-operator", "prune"}, "etcd-pod").
+			WithRevisionedResources("openshift-etcd", "etcd", RevisionConfigMaps, RevisionSecrets).
+			WithUnrevisionedCerts("etcd-certs", CertConfigMaps, CertSecrets).
+			WithVersioning("etcd", versionRecorder).
+			ToControllers()
+	} else {
+		staticPodControllers, err = staticpod.NewBuilder(operatorClient, kubeClient, kubeInformersForNamespaces).
+			WithEvents(controllerContext.EventRecorder).
+			WithInstaller([]string{"cluster-etcd-operator", "installer"}).
+			WithPruning([]string{"cluster-etcd-operator", "prune"}, "etcd-pod").
+			WithRevisionedResources("openshift-etcd", "etcd", RevisionConfigMaps, RevisionSecrets).
+			WithUnrevisionedCerts("etcd-certs", CertConfigMaps, CertSecrets).
+			WithVersioning("etcd", versionRecorder).
+			ToControllers()
+	}
 	if err != nil {
 		return err
 	}
